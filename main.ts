@@ -1,134 +1,118 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { Plugin, Notice, MarkdownView, Editor, Setting } from 'obsidian';
+import { SettingTab } from './settings';
+import { PorterStemmer } from 'natural';
 
-// Remember to rename these classes and interfaces!
-
-interface MyPluginSettings {
-	mySetting: string;
+// Define a setting for the plugin
+interface Language {
+	language: string;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+const DEFAULT_SETTINGS: Partial<Language> = {
+	language: 'en'
 }
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+// Define a setting tab for the plugin
 
-	async onload() {
-		await this.loadSettings();
+async function extractKeywords(content: string, language: string): Promise<string[] | null> {
+	const response = await fetch('https://languages.cortical.io/rest/text/keywords?retina_name=' + language, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json"
+		},
+		body: content,
+		redirect: "follow"
+	})
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-			}
-		});
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+	if (!response.ok) {
+		new Notice('Failed to extract keywords from the content: ' + response.statusText);
+		return null;
 	}
 
-	onunload() {
+	return await response.json();
+}
 
-	}
 
+export default class TagGeneratorPlugin extends Plugin {
+	
+	// Define the settings for the plugin
+	settings: Language;
+
+	// Load and save the settings
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
-
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
-}
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
+	
+	async onload() {
+		await this.loadSettings();
+		this.addSettingTab(new SettingTab(this.app, this));
+
+		// Register a command to generate tags for the current note
+		this.addCommand({
+			id: 'generate-tags',
+			name: 'Generate Tags',
+			callback: async () => {
+				// get the content of the current note
+				const editor = this.app.workspace.getActiveViewOfType(MarkdownView);
+				const content = editor?.editor.getValue();
+				if (!content) {
+					new Notice('No content found in the current note.');
+					return;
+				}
+
+				// extract keywords from the content
+				new Notice('Extracting tags from the current note...');
+				const language = this.settings.language;
+				const keywords = await extractKeywords(content, language + '_general');
+				
+				if (!keywords) {
+					new Notice('No tags found in the current note.');
+					return;
+				}
+				
+				// remove proper nouns from the keywords and duplicates
+				for (let i = 0; i < keywords.length; i++) {
+					if (content.toLowerCase().includes(keywords[i].toLowerCase()) && !(content.includes(keywords[i]))) {
+						new Notice('Removing ' + keywords[i] + ' from the tags.');
+						keywords.splice(i, 1);
+						i--;
+					} else {
+						for (let j = i + 1; j < keywords.length; j++) {
+							if (PorterStemmer.stem(keywords[i]) == PorterStemmer.stem(keywords[j])) {
+								// remove the longest word
+								if (keywords[i].length > keywords[j].length) {
+									new Notice('Removing 1 ' + keywords[i] + ' from the tags.');
+									keywords.splice(j, 1);
+								} else {
+									new Notice('Removing 2 ' + keywords[i] + ' from the tags.');
+									keywords.splice(i, 1);
+									
+									i--;
+									break;
+								}
+							}
+						}
+					}
+				}
+				
+
+				// Update tags in current note
+				const file = editor?.file;
+				if (!file) {
+					new Notice('No file associated with the current note.');
+					return;
+				} else {
+					editor?.editor.replaceSelection("#" + keywords.join(' #'));
+				}
+			}
+		});
 	}
+	
 
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
-}
-
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const {containerEl} = this;
-
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+	onunload() {
+		new Notice('TagGeneratorPlugin unloaded.');
 	}
 }
