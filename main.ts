@@ -1,4 +1,4 @@
-import { Plugin, Notice, MarkdownView, Editor, Setting } from 'obsidian';
+import { Plugin, Notice, MarkdownView } from 'obsidian';
 import { SettingTab } from './settings';
 import { PorterStemmer } from 'natural';
 
@@ -76,7 +76,6 @@ export default class TagGeneratorPlugin extends Plugin {
 				// remove proper nouns from the keywords and duplicates
 				for (let i = 0; i < keywords.length; i++) {
 					if (content.toLowerCase().includes(keywords[i].toLowerCase()) && !(content.includes(keywords[i]))) {
-						new Notice('Removing ' + keywords[i] + ' from the tags.');
 						keywords.splice(i, 1);
 						i--;
 					} else {
@@ -84,12 +83,9 @@ export default class TagGeneratorPlugin extends Plugin {
 							if (PorterStemmer.stem(keywords[i]) == PorterStemmer.stem(keywords[j])) {
 								// remove the longest word
 								if (keywords[i].length > keywords[j].length) {
-									new Notice('Removing 1 ' + keywords[i] + ' from the tags.');
 									keywords.splice(j, 1);
 								} else {
-									new Notice('Removing 2 ' + keywords[i] + ' from the tags.');
 									keywords.splice(i, 1);
-									
 									i--;
 									break;
 								}
