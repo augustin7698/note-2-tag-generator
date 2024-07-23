@@ -6,6 +6,5 @@
 	"description": "Generate tags from notes without openai key in multiple languages",
 	"author": "Augustin",
 	"authorUrl": "https://augustin.great-site.net",
-	"fundingUrl": "https://augustin.great-site.net",
 	"isDesktopOnly": false
 }
