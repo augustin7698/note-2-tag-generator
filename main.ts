@@ -18,7 +18,7 @@ async function extractKeywords(content: string, language: string): Promise<strin
 		response = await requestUrl(options);
 		return JSON.parse(response.text)
 	} catch (error) {
-		new Notice('Error extracting tags: ' + error);
+		console.log('Error extracting tags: ' + error);
 		return null;
 	}
 
@@ -62,26 +62,28 @@ async function extractTags(editor: MarkdownView, language: string, content: stri
 export default class TagGeneratorPlugin extends Plugin {
 	
 	async onload() {
-		new Notice('Tag Generator Plugin loaded.');
+		console.log('Loading Tag Generator Plugin');
 		
 		// Register a command to generate tags for the current note
 		this.addCommand({
 			id: 'generate-tags',
-			name: 'Generate Tags',
+			name: 'Generate tags',
 
 			checkCallback: (checking: boolean) => {
 				const editor = this.app.workspace.getActiveViewOfType(MarkdownView);
 				if (editor) {
-					const language = moment.locale();
-					if (['en', 'fr', 'de', 'es', 'zh-tw', 'da', 'ar'].includes(language)) {
-						const content = editor.editor.getValue();
-						if (content.length > 0) {
-							if (!checking) {
-								extractTags(editor, language, content);
-							}
-							return true;
-						}
+					let language = moment.locale();
+					if (!['en', 'fr', 'de', 'es', 'zh-tw', 'da', 'ar'].includes(language)) {
+						language = 'en';
 					}
+					const content = editor.editor.getValue();
+					if (content.length > 0) {
+						if (!checking) {
+							extractTags(editor, language, content);
+						}
+						return true;
+					}
+					
 				}
 				// No content found in the current note.
 				// or

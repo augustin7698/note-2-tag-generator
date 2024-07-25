@@ -14,5 +14,8 @@ It is completely free and **does not require any configuration**.
 ## Settings
 - **Language**: The language used to generate tags. Default is English, but you can change it to any language you want.
 
+## How it works
+The plugin uses the https://languages.cortical.io/rest/text/keywords endpoint to generate tags from the content of the note. It sends a request to the API with the content of the note and the language selected in the settings. The API returns a list of tags that are added to the note. The plugin does not store any data or information about the notes. The plugin also detects if some tags are similar and removes them.
+
 ## Contact
 If you have any questions or suggestions, or if you want to report a bug, please contact me at discord: `@0gustin`
